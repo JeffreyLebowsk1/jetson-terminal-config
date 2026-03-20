@@ -9,6 +9,7 @@ HTML:  Resizable player with mute toggle + volume slider
 Usage:
     python3 webcam-server.py [--port 8920] [--video /dev/video0] [--res 1280x720]
                              [--fps 15] [--audio hw:CARD=C920e] [--no-audio]
+                             [--rtp udp://0.0.0.0:5000]
 """
 
 import argparse
@@ -30,6 +31,7 @@ def parse_args():
     p.add_argument("--fps", type=int, default=15, help="Frame rate")
     p.add_argument("--audio", default="auto", help="ALSA device or 'auto' or 'none'")
     p.add_argument("--no-audio", action="store_true", help="Disable audio")
+    p.add_argument("--rtp", default=None, help="RTP/UDP source URL (e.g. udp://0.0.0.0:5000)")
     return p.parse_args()
 
 
@@ -38,29 +40,62 @@ def parse_args():
 class MJPEGStream:
     """Captures MJPEG frames from ffmpeg and distributes to HTTP clients."""
 
-    def __init__(self, device, resolution, fps):
+    def __init__(self, device, resolution, fps, rtp_source=None):
         self.device = device
         self.resolution = resolution
         self.fps = fps
+        self.rtp_source = rtp_source
         self.frame = b""
         self.lock = threading.Lock()
         self.event = threading.Event()
         self.process = None
 
     def start(self):
-        w, h = self.resolution.split("x")
-        cmd = [
-            "ffmpeg", "-hide_banner", "-loglevel", "error",
-            "-f", "v4l2",
-            "-input_format", "mjpeg",
-            "-video_size", self.resolution,
-            "-framerate", str(self.fps),
-            "-i", self.device,
-            "-c:v", "mjpeg",
-            "-q:v", "5",
-            "-f", "mjpeg",
-            "-"
-        ]
+        if self.rtp_source:
+            # Parse udp://host:port from rtp_source
+            import re
+            m = re.match(r"udp://([^:]+):(\d+)", self.rtp_source)
+            host = m.group(1) if m else "0.0.0.0"
+            port = m.group(2) if m else "5000"
+            # Write SDP so ffmpeg knows it is H264 RTP
+            sdp = (
+                "v=0\n"
+                f"o=- 0 0 IN IP4 {host}\n"
+                "s=GStreamer\n"
+                f"c=IN IP4 {host}\n"
+                "t=0 0\n"
+                f"m=video {port} RTP/AVP 96\n"
+                "a=rtpmap:96 H264/90000\n"
+            )
+            sdp_path = "/tmp/webcam_rtp.sdp"
+            with open(sdp_path, "w") as f:
+                f.write(sdp)
+            cmd = [
+                "ffmpeg", "-hide_banner", "-loglevel", "warning",
+                "-protocol_whitelist", "file,udp,rtp",
+                "-fflags", "nobuffer",
+                "-flags", "low_delay",
+                "-i", sdp_path,
+                "-c:v", "mjpeg",
+                "-q:v", "5",
+                "-r", str(self.fps),
+                "-f", "mjpeg",
+                "-"
+            ]
+        else:
+            # Direct V4L2 capture
+            cmd = [
+                "ffmpeg", "-hide_banner", "-loglevel", "error",
+                "-f", "v4l2",
+                "-input_format", "mjpeg",
+                "-video_size", self.resolution,
+                "-framerate", str(self.fps),
+                "-i", self.device,
+                "-c:v", "mjpeg",
+                "-q:v", "5",
+                "-f", "mjpeg",
+                "-"
+            ]
         self.process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
@@ -211,8 +246,10 @@ def build_html(has_audio, port):
   .size-btns button {{
     background: #0f3460; border: 1px solid #444; color: #eee;
     padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+    transition: background 0.15s;
   }}
   .size-btns button:hover {{ background: #1a4a8a; }}
+  .size-btns button.active {{ background: #e2b714; color: #1a1a2e; border-color: #e2b714; }}
   .status {{ font-size: 0.75rem; color: #666; margin-top: 6px; }}
   .grip {{
     position: absolute; bottom: 2px; right: 2px;
@@ -229,10 +266,11 @@ def build_html(has_audio, port):
   <div class="controls">
     {audio_section}
     <div class="size-btns">
-      <button onclick="resize(320,240)">S</button>
-      <button onclick="resize(640,480)">M</button>
-      <button onclick="resize(960,720)">L</button>
-      <button onclick="toggleFullscreen()">⛶</button>
+      <button id="btnS" onclick="resize(320,'S')">S</button>
+      <button id="btnM" onclick="resize(640,'M')" class="active">M</button>
+      <button id="btnL" onclick="resize(960,'L')">L</button>
+      <button id="btnXL" onclick="resize(1280,'XL')">XL</button>
+      <button onclick="toggleFullscreen()">&#x26F6;</button>
     </div>
   </div>
   <div class="status" id="status">Connected</div>
@@ -240,8 +278,12 @@ def build_html(has_audio, port):
     const wrapper = document.getElementById('camWrapper');
     const img = document.getElementById('camImg');
 
-    function resize(w, h) {{
+    function resize(w, label) {{
       wrapper.style.width = w + 'px';
+      wrapper.style.height = 'auto';
+      document.querySelectorAll('.size-btns button').forEach(b => b.classList.remove('active'));
+      var btn = document.getElementById('btn' + label);
+      if (btn) btn.classList.add('active');
     }}
     function toggleFullscreen() {{
       if (!document.fullscreenElement) {{
@@ -369,9 +411,12 @@ def main():
     args = parse_args()
 
     # Video
-    video_stream = MJPEGStream(args.video, args.res, args.fps)
+    video_stream = MJPEGStream(args.video, args.res, args.fps, rtp_source=args.rtp)
     video_stream.start()
-    print(f"[video] Streaming from {args.video} at {args.res} {args.fps}fps")
+    if args.rtp:
+        print(f"[video] Receiving RTP stream from {args.rtp}")
+    else:
+        print(f"[video] Streaming from {args.video} at {args.res} {args.fps}fps")
 
     # Audio
     if args.no_audio or args.audio == "none":

@@ -26,11 +26,21 @@ start_server() {
         return 0
     fi
 
+    # Auto-detect source: if GStreamer RTP is running, use it; otherwise direct V4L2
+    local extra_args=()
+    if pgrep -f 'gst-launch.*udpsink.*port=5000' &>/dev/null; then
+        echo -e "${CYAN}Detected GStreamer RTP stream on UDP :5000${RESET}"
+        extra_args=(--rtp "udp://0.0.0.0:5000")
+    elif [ ! -e /dev/video0 ]; then
+        echo -e "${RED}No video device found${RESET}"
+        return 1
+    fi
+
     echo -e "${BOLD}Starting Jetson Dog Cam...${RESET}"
-    python3 "$SERVER" --port "$PORT" "$@" &
+    python3 "$SERVER" --port "$PORT" --no-audio "${extra_args[@]}" "$@" &
     local pid=$!
     echo "$pid" > "$PID_FILE"
-    sleep 1
+    sleep 2
 
     if kill -0 "$pid" 2>/dev/null; then
         echo -e "${GREEN}✓ Running${RESET} (PID $pid)"
