@@ -14,9 +14,11 @@ export HISTFILESIZE=100000
 shopt -s histappend                       # append, don't overwrite
 PROMPT_COMMAND="history -a; $PROMPT_COMMAND"   # write every command immediately
 
-# Incremental history search with arrow keys
-bind '"\e[A": history-search-backward'
-bind '"\e[B": history-search-forward'
+# Incremental history search with arrow keys (interactive only)
+if [[ $- == *i* ]]; then
+    bind '"\e[A": history-search-backward'
+    bind '"\e[B": history-search-forward'
+fi
 
 # ── Colors & ls ───────────────────────────────────────────────────────
 export CLICOLOR=1
@@ -37,7 +39,9 @@ export EDITOR=nano
 export VISUAL=nano
 
 # ── Disable terminal bell ─────────────────────────────────────────────
-bind 'set bell-style none'
+if [[ $- == *i* ]]; then
+    bind 'set bell-style none'
+fi
 
 # ── Starship prompt (if installed) ────────────────────────────────────
 if command -v starship &>/dev/null; then

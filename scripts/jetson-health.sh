@@ -56,8 +56,8 @@ jetson_health() {
         for zone in /sys/devices/virtual/thermal/thermal_zone*/; do
             if [ -f "$zone/type" ] && [ -f "$zone/temp" ]; then
                 local name temp
-                name=$(cat "$zone/type")
-                temp=$(cat "$zone/temp")
+                name=$(cat "$zone/type" 2>/dev/null) || continue
+                temp=$(cat "$zone/temp" 2>/dev/null) || continue
                 printf "  %-20s %s°C\n" "$name" "$(echo "scale=1; $temp/1000" | bc 2>/dev/null || echo "$temp")"
             fi
         done
