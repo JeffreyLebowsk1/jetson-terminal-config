@@ -2,6 +2,11 @@
 # ── Jetson .bashrc additions ─────────────────────────────────────────
 # Source this from ~/.bashrc:  [ -f ~/jetson-terminal-config/shell/bashrc-extras.sh ] && . ~/jetson-terminal-config/shell/bashrc-extras.sh
 
+# ── Path: ensure ~/.local/bin is available ─────────────────────────────
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
 # ── History ───────────────────────────────────────────────────────────
 export HISTCONTROL=ignoredups:erasedups
 export HISTSIZE=50000

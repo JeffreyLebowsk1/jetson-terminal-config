@@ -35,9 +35,14 @@ info "Symlinked tmux.conf → ~/.tmux.conf"
 if command -v starship &>/dev/null; then
     info "Starship already installed"
 else
-    warn "Installing starship..."
-    curl -sS https://starship.rs/install.sh | sh -s -- -y
-    info "Starship installed"
+    warn "Installing starship to ~/.local/bin..."
+    mkdir -p ~/.local/bin
+    curl -sS https://starship.rs/install.sh | sh -s -- -y -b ~/.local/bin
+    info "Starship installed to ~/.local/bin"
+fi
+# Ensure ~/.local/bin is on PATH
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 mkdir -p ~/.config
 ln -sf "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
