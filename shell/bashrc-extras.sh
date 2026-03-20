@@ -2,10 +2,14 @@
 # ── Jetson .bashrc additions ─────────────────────────────────────────
 # Source this from ~/.bashrc:  [ -f ~/jetson-terminal-config/shell/bashrc-extras.sh ] && . ~/jetson-terminal-config/shell/bashrc-extras.sh
 
-# ── Path: ensure ~/.local/bin is available ─────────────────────────────
-if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-    export PATH="$HOME/.local/bin:$PATH"
-fi
+# ── Path ──────────────────────────────────────────────────────────────
+REPO_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/../bin" 2>/dev/null && pwd)"
+for _d in "$HOME/.local/bin" "$REPO_BIN"; do
+    if [[ -d "$_d" && ":$PATH:" != *":$_d:"* ]]; then
+        export PATH="$_d:$PATH"
+    fi
+done
+unset _d REPO_BIN
 
 # ── History ───────────────────────────────────────────────────────────
 export HISTCONTROL=ignoredups:erasedups
