@@ -49,8 +49,21 @@ ln -sf "$REPO_DIR/starship/starship.toml" ~/.config/starship.toml
 info "Symlinked starship.toml → ~/.config/starship.toml"
 
 # ── Make scripts executable ──────────────────────────────────────────
-chmod +x "$REPO_DIR"/scripts/*.sh
+chmod +x "$REPO_DIR"/scripts/*.sh 2>/dev/null || true
+chmod +x "$REPO_DIR"/scripts/*.py 2>/dev/null || true
 info "Made scripts executable"
+
+# ── Bin wrappers (add to PATH) ───────────────────────────────────────
+chmod +x "$REPO_DIR"/bin/* 2>/dev/null || true
+BIN_LINE="export PATH=\"$REPO_DIR/bin:\$PATH\""
+if ! grep -qF "$REPO_DIR/bin" ~/.bashrc 2>/dev/null; then
+    echo "# Jetson command center bin" >> ~/.bashrc
+    echo "$BIN_LINE" >> ~/.bashrc
+    info "Added $REPO_DIR/bin to PATH in ~/.bashrc"
+else
+    warn "$REPO_DIR/bin already in ~/.bashrc — skipping"
+fi
+info "Bin wrappers: jcenter, jhealth, jcam, jgit, jdocker, jmonitor, jlayout"
 
 # ── Tmux ─────────────────────────────────────────────────────────────
 if command -v tmux &>/dev/null; then
@@ -65,6 +78,10 @@ fi
 echo ""
 echo "── Setup complete! ──"
 echo "  • Restart your shell or run: source ~/.bashrc"
-echo "  • Start dev layout:     jlayout"
-echo "  • Start monitor layout: bash $REPO_DIR/scripts/tmux-monitor-layout.sh"
-echo "  • Run health check:     jhealth"
+echo "  • Launch command center: jcenter"
+echo "  • Dog cam only:         jcam"
+echo "  • Git dashboard:        jgit"
+echo "  • System health:        jhealth"
+echo "  • Docker status:        jdocker"
+echo "  • Dev layout:           jlayout"
+echo "  • Monitor layout:       jmonitor"

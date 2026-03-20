@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Wrapper: launches the dev tmux layout
+exec "$(dirname "$(readlink -f "$0")")/../scripts/tmux-dev-layout.sh" "$@"
